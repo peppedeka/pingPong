@@ -22,6 +22,7 @@ public class Peer extends Thread {
 	private int _rejectPongGUIIDCounter = 0;
 
 	private int _init=0;
+	private boolean _isRunning = false;
 	private Timer timer = new Timer();
 
 	public String ip;
@@ -58,6 +59,7 @@ public class Peer extends Thread {
 	public Peer() {
 		ip = Network.generateIPAddress();
 		port = Network.generatePort();
+		_isRunning = true;
 
 		System.out.format("peer created with ip %s on port %d\t", ip, port);
 		bootstrap();
@@ -88,7 +90,7 @@ public class Peer extends Thread {
 
 	private void flood(Peer fromPeer, Message ping) {
 		if( (_rejectPingTTLCounter + _rejectPingGUIIDCounter + _rejectPongTTLCounter + _rejectPongGUIIDCounter)>0){			
-			System.out.format(ANSI_RED +"%s: <msg ping reject> TTL <= 0: %d, same GUIID: %d\t<msg pong reject> TTL <= 0: %d, same GUIID: %d"+ ANSI_RESET,ip, _rejectPingTTLCounter, _rejectPingGUIIDCounter, _rejectPongTTLCounter, _rejectPongGUIIDCounter);
+			System.out.format(ANSI_RED +"%s: <msg ping reject> TTL <= 0: %d, same GUIID: %d\t<msg pong reject> TTL <= 0: %d, same GUIID: %d\n"+ ANSI_RESET,ip, _rejectPingTTLCounter, _rejectPingGUIIDCounter, _rejectPongTTLCounter, _rejectPongGUIIDCounter);
 			_rejectPingTTLCounter = 0;
 			_rejectPingGUIIDCounter = 0;
 			_rejectPongTTLCounter = 0;
@@ -111,69 +113,71 @@ public class Peer extends Thread {
 		toPeer.receive(this, msg);
 	}
 	public void receive(Peer fromPeer, Message msg) {
-		discoverPeer(fromPeer);
-		switch(msg.function()){
-		case "connect":
-			Message responseMsg = new Message(this,"ok",null);
+		if(_isRunning){
+
 			discoverPeer(fromPeer);
-			send(fromPeer, responseMsg);
-			break;
-		case "ok":
-			System.out.format(ANSI_CYAN + "%s estabilish connection with %s\n" + ANSI_RESET, ip, fromPeer.ip);
-			ping(this,fromPeer);
-			break;
-		case "ping": 
-			boolean boolGuiid = fromUIID.contains(msg.guid());
-			/*		System.out.format(ANSI_GREEN + "\n msg: ttl:%d  hop:%d\t" + ANSI_RESET, msg.TTL(), msg.hops());*/
-			if(msg.TTL()<=0){
-				_rejectPingTTLCounter++;
+			switch(msg.function()){
+			case "connect":
+				Message responseMsg = new Message(this,"ok",null);
+				discoverPeer(fromPeer);
+				send(fromPeer, responseMsg);
 				break;
-			}
-			if(boolGuiid == true){
-				_rejectPingGUIIDCounter++;
+			case "ok":
+				System.out.format(ANSI_CYAN + "%s estabilish connection with %s\n" + ANSI_RESET, ip, fromPeer.ip);
+				ping(this,fromPeer);
 				break;
-			}
+			case "ping": 
+				boolean boolGuiid = fromUIID.contains(msg.guid());
+				/*		System.out.format(ANSI_GREEN + "\n msg: ttl:%d  hop:%d\t" + ANSI_RESET, msg.TTL(), msg.hops());*/
+				if(msg.TTL()<=0){
+					_rejectPingTTLCounter++;
+					break;
+				}
+				if(boolGuiid == true){
+					_rejectPingGUIIDCounter++;
+					break;
+				}
 
-			msg.decrementTTL();
-			msg.incrementHops();
-			System.out.format(ANSI_GREEN + "ping: origin:%s  ---> ...  %s ---> %s TTL:%d hops:%d\n" + ANSI_RESET,  msg.fromPeer.ip, fromPeer.ip, ip,msg.TTL(),msg.hops());
-			fromUIID.add(msg.guid());
-			pong(fromPeer);
-			new Thread(() -> {
-				flood(fromPeer, msg);	
-			}).start();
-			break;
-		case "pong":
-			/**	System.out.format(ANSI_YELLOW + "\n msg: ttl:%d  hop:%d\t" + ANSI_RESET, msg.TTL(), msg.hops());*/
-			boolean boolGuiidP = fromUIID.contains(msg.guid());
-
-			if(msg.TTL()<=0){
-				_rejectPongTTLCounter++;
-				break;
-			}
-			if(boolGuiidP == true){
-				_rejectPongGUIIDCounter++;
-				break;
-			}
-
-			msg.decrementTTL();
-			msg.incrementHops();
-			System.out.format(ANSI_YELLOW + "pong: origin:%s  ---> ...  %s ---> %s TTL:%d hops:%d\n" + ANSI_RESET,  msg.fromPeer.ip, fromPeer.ip, ip,msg.TTL(),msg.hops());
-
-			fromUIID.add(msg.guid());
-			discoverPeer(msg.payload().peer());
-			if(msg.fromPeer != this){
+				msg.decrementTTL();
+				msg.incrementHops();
+				System.out.format(ANSI_GREEN + "ping: origin:%s  ---> ...  %s ---> %s TTL:%d hops:%d\n" + ANSI_RESET,  msg.fromPeer.ip, fromPeer.ip, ip,msg.TTL(),msg.hops());
+				fromUIID.add(msg.guid());
+				pong(fromPeer);
 				new Thread(() -> {
-					pong(pingCache.getNextPeer(fromPeer), msg);				
+					flood(fromPeer, msg);	
 				}).start();
+				break;
+			case "pong":
+				/**	System.out.format(ANSI_YELLOW + "\n msg: ttl:%d  hop:%d\t" + ANSI_RESET, msg.TTL(), msg.hops());*/
+				boolean boolGuiidP = fromUIID.contains(msg.guid());
+
+				if(msg.TTL()<=0){
+					_rejectPongTTLCounter++;
+					break;
+				}
+				if(boolGuiidP == true){
+					_rejectPongGUIIDCounter++;
+					break;
+				}
+
+				msg.decrementTTL();
+				msg.incrementHops();
+				System.out.format(ANSI_YELLOW + "pong: origin:%s  ---> ...  %s ---> %s TTL:%d hops:%d\n" + ANSI_RESET,  msg.fromPeer.ip, fromPeer.ip, ip,msg.TTL(),msg.hops());
+
+				fromUIID.add(msg.guid());
+				discoverPeer(msg.payload().peer());
+				if(msg.fromPeer != this){
+					new Thread(() -> {
+						pong(pingCache.getNextPeer(fromPeer), msg);				
+					}).start();
+				}
+
+
+				break;
+			default: break;
 			}
 
-
-			break;
-		default: break;
-		}
-
-
+		} 
 	}
 
 	private void discoverPeer(Peer peer) {
@@ -182,7 +186,7 @@ public class Peer extends Thread {
 		boolean peerNotThis = peer != this;
 		/*System.out.format(ANSI_BLUE + "%s DISCOVER ENTER %s\t" + ANSI_RESET, ip, peer.ip);
 		System.out.format(ANSI_BLUE + "containPeer==%B peerNotThis==%B alive==%B\t" + ANSI_RESET, containPeer, peerNotThis, alive);*/
-		if( containPeer == false && peerNotThis == true &&  alive == true){
+		if( containPeer == false && peerNotThis == true &&  alive == true && peer.isRunning()){
 			activePeersList.add(peer);
 			System.out.format(ANSI_BLUE + "%s discover new peer %s\t" + ANSI_RESET, ip, peer.ip);
 			stampIp();
@@ -191,14 +195,26 @@ public class Peer extends Thread {
 
 	}
 
+	private boolean isRunning() {
+		// TODO Auto-generated method stub
+		return _isRunning;
+	}
+
 	private void MyTimer(Peer peer) {
 		TimerTask task;
+
 		task = new TimerTask () {
 			@Override
 			public void run() { 
+
 				System.out.format(ANSI_PURPLE +"%s: RELAY PING  %d neighbors\n"+ANSI_RESET,ip,activePeersList.size());
 				for(int i = 0; i < activePeersList.size(); i++){
-					peer.ping(peer,activePeersList.get(i));
+					if(activePeersList.get(i).isRunning()){
+						peer.ping(peer,activePeersList.get(i));						
+					} else {
+						System.out.format(ANSI_PURPLE +"%s: update neighbors list  %s neighbor unreachable\n"+ANSI_RESET,ip,activePeersList.get(i).ip);
+						activePeersList.remove(i);
+					}
 				}
 			}
 		};
@@ -206,7 +222,8 @@ public class Peer extends Thread {
 
 	}
 
-	public void run() {			
+	public void run() {	
+
 		for(int i = 0; i < activePeersList.size(); i++){
 			connection(activePeersList.get(i));
 		}
@@ -214,6 +231,18 @@ public class Peer extends Thread {
 
 
 
+	}
+
+	@SuppressWarnings("unused")
+	public void interruptMe() {
+		// TODO Auto-generated method stub
+		_isRunning=false;
+		timer.cancel();
+		timer.purge();
+		this.timer.cancel();
+		this.timer.purge();
+		Thread.currentThread().interrupt();
+		this.interrupt();
 	}
 
 }

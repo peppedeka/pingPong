@@ -64,12 +64,20 @@ public class Overlay {
 				}
 			}
 		};
-		timer.schedule(task, 0, 40000);
+		timer.schedule(task, 0, 4000);
 
 	}
 
 	protected void removePeer(int randomPeerIndex) {
+
+		peers.get(randomPeerIndex).interruptMe();
 		peers.get(randomPeerIndex).interrupt();
+
+		peers.get(randomPeerIndex).currentThread().interrupt();
+		peers.get(randomPeerIndex).stop();
+
+		boolean check = peers.get(randomPeerIndex).currentThread().isAlive();
+		boolean check1 = peers.get(randomPeerIndex).isAlive();
 		peers.remove(randomPeerIndex);
 
 	}
