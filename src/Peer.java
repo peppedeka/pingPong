@@ -71,24 +71,29 @@ public class Peer extends Thread {
 	}
 
 	private void ping(Peer fromPeer, Peer toPeer) {
+		Report.addPing();
 		Message msg = new Message(this,"ping",null);
 		pingCache.add(msg, fromPeer, toPeer);
 		send(toPeer, msg);			
 	}
 	private void ping(Message ping, Peer fromPeer, Peer toPeer) {
+		Report.addPing();
 		pingCache.add(ping, fromPeer, toPeer);
 		send(toPeer, ping);			
 	}
 	private void pong(Peer toPeer) {
+		Report.addPong();
 		Payload payload = new Payload(this, 12, 12);
 		Message msg = new Message(this,"pong", payload);
 		send(toPeer, msg);			
 	}
 	private void pong(Peer toPeer, Message msg) {
+		Report.addPong();
 		send(toPeer, msg);			
 	}
 
 	private void flood(Peer fromPeer, Message ping) {
+		Report.flood();
 		if( (_rejectPingTTLCounter + _rejectPingGUIIDCounter + _rejectPongTTLCounter + _rejectPongGUIIDCounter)>0){			
 			System.out.format(ANSI_RED +"%s: <msg ping reject> TTL <= 0: %d, same GUIID: %d\t<msg pong reject> TTL <= 0: %d, same GUIID: %d\n"+ ANSI_RESET,ip, _rejectPingTTLCounter, _rejectPingGUIIDCounter, _rejectPongTTLCounter, _rejectPongGUIIDCounter);
 			_rejectPingTTLCounter = 0;
@@ -130,10 +135,12 @@ public class Peer extends Thread {
 				boolean boolGuiid = fromUIID.contains(msg.guid());
 				/*		System.out.format(ANSI_GREEN + "\n msg: ttl:%d  hop:%d\t" + ANSI_RESET, msg.TTL(), msg.hops());*/
 				if(msg.TTL()<=0){
+					Report.rejectPingTTL();
 					_rejectPingTTLCounter++;
 					break;
 				}
 				if(boolGuiid == true){
+					Report.rejectPingGuiid();
 					_rejectPingGUIIDCounter++;
 					break;
 				}
@@ -152,10 +159,12 @@ public class Peer extends Thread {
 				boolean boolGuiidP = fromUIID.contains(msg.guid());
 
 				if(msg.TTL()<=0){
+					Report.rejectPongTTL();
 					_rejectPongTTLCounter++;
 					break;
 				}
 				if(boolGuiidP == true){
+					Report.rejectPongGuiid();
 					_rejectPongGUIIDCounter++;
 					break;
 				}

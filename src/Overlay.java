@@ -21,6 +21,7 @@ public class Overlay {
 	static int step = 0;
 
 	static Random randomGenerator = new Random();
+	static Report report = new Report();
 
 	static int numberOfNodes = 3;
 	static List<Peer> peers = new ArrayList<Peer>();
@@ -48,6 +49,7 @@ public class Overlay {
 			@Override
 			public void run() { 
 				int numberOfPeers = peers.size() - 1;
+				Report.step(step);
 				System.out.format(ANSI_PURPLE+"\n\n\nSTEP: %d\n"+ANSI_RESET, step);
 				switch(step){
 				case 0: case 1: case 3:default: 
@@ -61,8 +63,13 @@ public class Overlay {
 					myNet.removePeer(randomPeerIndex);
 					step++;
 					break;
+				case 20:
+					Report.close();
+					timer.cancel();
+					break;
 				}
 			}
+
 		};
 		timer.schedule(task, 0, 4000);
 
